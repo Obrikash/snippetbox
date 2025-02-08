@@ -4,14 +4,15 @@ import (
 	"github.com/obrikash/snippetbox/internal/models"
 	"html/template"
 	"path/filepath"
-    "time"
+	"time"
 )
 
 type templateData struct {
 	Snippet     *models.Snippet
 	Snippets    []*models.Snippet
 	CurrentYear int
-    Form    any
+	Form        any
+	Flash       string
 }
 
 func newTemplateCache() (map[string]*template.Template, error) {
@@ -47,9 +48,9 @@ func newTemplateCache() (map[string]*template.Template, error) {
 }
 
 func humanDate(t time.Time) string {
-    return t.Format("02 Jan 2006 at 15:04")
+	return t.Format("02 Jan 2006 at 15:04")
 }
 
 var functions = template.FuncMap{
-    "humanDate": humanDate,
+	"humanDate": humanDate,
 }
