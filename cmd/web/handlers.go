@@ -11,8 +11,7 @@ import (
 	"github.com/obrikash/snippetbox/internal/validator"
 )
 
-type snippetCreateForm struct {
-	Title               string `form:"title"`
+type snippetCreateForm struct { Title               string `form:"title"`
 	Content             string `form:"content"`
 	Expires             int    `form:"expires"`
 	validator.Validator `form:"-"`
@@ -29,6 +28,10 @@ type userLoginForm struct {
 	Email               string `form:"email"`
 	Password            string `form:"password"`
 	validator.Validator `form:"-"`
+}
+
+func ping(w http.ResponseWriter, r *http.Request) {
+    w.Write([]byte("OK"))
 }
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +94,7 @@ func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request
 	form.CheckField(validator.NotBlank(form.Title), "title", "This field cannot be blank")
 	form.CheckField(validator.MaxChars(form.Title, 100), "title", "This field cannot be more than 100 characters long")
 	form.CheckField(validator.NotBlank(form.Content), "content", "This field cannot be blank")
-	form.CheckField(validator.PermittedInt(form.Expires, 365, 7, 1), "expires", "This field must equal 1, 7 or 365")
+	form.CheckField(validator.PermittedValue(form.Expires, 365, 7, 1), "expires", "This field must equal 1, 7 or 365")
 
 	if !form.Valid() {
 		data := app.newTemplateData(r)
