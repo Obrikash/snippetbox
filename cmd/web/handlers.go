@@ -48,6 +48,12 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "home.tmpl", data)
 }
 
+func (app *application) about(w http.ResponseWriter, r *http.Request) {
+    data := app.newTemplateData(r)
+
+    app.render(w, http.StatusOK, "about.tmpl", data)
+}
+
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 	params := httprouter.ParamsFromContext(r.Context())
 
@@ -226,4 +232,8 @@ func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
     app.sessionManager.Put(r.Context(), "flash", "You've been logged out successfully!")
 
     http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (app *application) accountView(w http.ResponseWriter, r *http.Request) {
+    
 }

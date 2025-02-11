@@ -1,7 +1,7 @@
 package main
 
 import (
-    "crypto/tls"
+	"crypto/tls"
 	"database/sql"
 	"flag"
 	"html/template"
@@ -21,16 +21,18 @@ import (
 type application struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
-	snippets       *models.SnippetModel
-    userModel      *models.UserModel
+	snippets       models.SnippetModelInterface
+	userModel      models.UserModelInterface
 	templateCache  map[string]*template.Template
 	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
+	debugMode      bool
 }
 
 func main() {
-	addr := flag.String("addr", ":4000", "HTTP network address")
+	addr := flag.String("addr", "localhost:4000", "HTTP network address")
 	dsn := flag.String("dsn", "web:pass/snippetbox?parseTime=true", "MySQL data source name")
+	debug := flag.Bool("debug", false, "Debug mode (True or False)")
 
 	flag.Parse()
 
@@ -66,34 +68,34 @@ func main() {
 
 	formDecoder := form.NewDecoder()
 
-    sessionManager := scs.New()
-    sessionManager.Store = mysqlstore.New(db)
-    sessionManager.Lifetime = 12 * time.Hour
-    sessionManager.Cookie.Secure = true
-
+	sessionManager := scs.New()
+	sessionManager.Store = mysqlstore.New(db)
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Cookie.Secure = true
 
 	app := &application{
-		infoLog:       infoLog,
-		errorLog:      errorLog,
-		snippets:      &models.SnippetModel{DB: db},
-        userModel:     &models.UserModel{DB: db},
-		templateCache: templateCache,
-		formDecoder:   formDecoder,
-        sessionManager: sessionManager,
+		infoLog:        infoLog,
+		errorLog:       errorLog,
+		snippets:       &models.SnippetModel{DB: db},
+		userModel:      &models.UserModel{DB: db},
+		templateCache:  templateCache,
+		formDecoder:    formDecoder,
+		sessionManager: sessionManager,
+		debugMode:      *debug,
 	}
 
-     tlsConfig := &tls.Config {
-        CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
-    }
+	tlsConfig := &tls.Config{
+		CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+	}
 
 	srv := &http.Server{
-		Addr:     *addr,
-		ErrorLog: errorLog,
-		Handler:  app.routes(),
-        TLSConfig: tlsConfig,
-        IdleTimeout: time.Minute,
-        ReadTimeout: 5 * time.Second,
-        WriteTimeout: 10 * time.Second,
+		Addr:         *addr,
+		ErrorLog:     errorLog,
+		Handler:      app.routes(),
+		TLSConfig:    tlsConfig,
+		IdleTimeout:  time.Minute,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
 	infoLog.Printf("Starting server on %s", *addr)
