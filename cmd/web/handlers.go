@@ -11,7 +11,8 @@ import (
 	"github.com/obrikash/snippetbox/internal/validator"
 )
 
-type snippetCreateForm struct { Title               string `form:"title"`
+type snippetCreateForm struct {
+	Title               string `form:"title"`
 	Content             string `form:"content"`
 	Expires             int    `form:"expires"`
 	validator.Validator `form:"-"`
@@ -31,7 +32,7 @@ type userLoginForm struct {
 }
 
 func ping(w http.ResponseWriter, r *http.Request) {
-    w.Write([]byte("OK"))
+	w.Write([]byte("OK"))
 }
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
@@ -49,9 +50,9 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) about(w http.ResponseWriter, r *http.Request) {
-    data := app.newTemplateData(r)
+	data := app.newTemplateData(r)
 
-    app.render(w, http.StatusOK, "about.tmpl", data)
+	app.render(w, http.StatusOK, "about.tmpl", data)
 }
 
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
@@ -169,71 +170,84 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }
 func (app *application) userLogin(w http.ResponseWriter, r *http.Request) {
-    data := app.newTemplateData(r)
-    data.Form = userLoginForm{}
-    app.render(w, http.StatusOK, "login.tmpl", data)
+	data := app.newTemplateData(r)
+	data.Form = userLoginForm{}
+	app.render(w, http.StatusOK, "login.tmpl", data)
 }
 
 func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
-    var form userLoginForm
+	var form userLoginForm
 
+	err := app.decodePostForm(r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
 
-    err := app.decodePostForm(r, &form)
-    if err != nil {
-        app.clientError(w, http.StatusBadRequest)
-        return
-    }
+	form.CheckField(validator.NotBlank(form.Email), "email", "This field cannot be blank")
+	form.CheckField(validator.Matches(form.Email, validator.EmailRX), "email", "This field must be a valid email address")
+	form.CheckField(validator.NotBlank(form.Password), "password", "This field cannot be blank")
 
-    form.CheckField(validator.NotBlank(form.Email), "email", "This field cannot be blank")
-    form.CheckField(validator.Matches(form.Email, validator.EmailRX), "email", "This field must be a valid email address")
-    form.CheckField(validator.NotBlank(form.Password), "password", "This field cannot be blank")
+	if !form.Valid() {
+		data := app.newTemplateData(r)
+		data.Form = form
+		app.render(w, http.StatusUnprocessableEntity, "login.tmpl", data)
+		return
+	}
 
-    if !form.Valid() {
-        data := app.newTemplateData(r)
-        data.Form = form
-        app.render(w, http.StatusUnprocessableEntity, "login.tmpl", data)
-        return
-    }
+	id, err := app.userModel.Authenticate(form.Email, form.Password)
+	if err != nil {
+		if errors.Is(err, models.ErrInvalidCredentials) {
+			form.AddNonFieldError("Email or password is incorrect")
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "login.tmpl", data)
+			return
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
 
-    id, err := app.userModel.Authenticate(form.Email, form.Password)
-    if err != nil {
-        if errors.Is(err, models.ErrInvalidCredentials) {
-            form.AddNonFieldError("Email or password is incorrect")
-            data := app.newTemplateData(r)
-            data.Form = form
-            app.render(w, http.StatusUnprocessableEntity, "login.tmpl", data)
-            return
-        } else {
-            app.serverError(w, err)
-        }
-        return
-    }
+	err = app.sessionManager.RenewToken(r.Context())
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
 
-    err = app.sessionManager.RenewToken(r.Context())
-    if err != nil {
-        app.serverError(w, err)
-        return
-    }
+	app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
 
-    app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
-    
-    http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
+	http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
 }
 
 func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
-    err := app.sessionManager.RenewToken(r.Context())
-    if err != nil {
-        app.serverError(w, err)
-        return
-    }
+	err := app.sessionManager.RenewToken(r.Context())
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
 
-    app.sessionManager.Remove(r.Context(), "authenticatedUserID")
-    
-    app.sessionManager.Put(r.Context(), "flash", "You've been logged out successfully!")
+	app.sessionManager.Remove(r.Context(), "authenticatedUserID")
 
-    http.Redirect(w, r, "/", http.StatusSeeOther)
+	app.sessionManager.Put(r.Context(), "flash", "You've been logged out successfully!")
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (app *application) accountView(w http.ResponseWriter, r *http.Request) {
-    
+	id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+
+	user, err := app.userModel.Get(id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			http.Redirect(w, r, "/user/login", http.StatusBadRequest)
+            return
+		} else {
+			app.serverError(w, err)
+			return
+		}
+	}
+    data := app.newTemplateData(r)
+    data.User = user
+    app.render(w, http.StatusOK, "account.tmpl", data)
 }
