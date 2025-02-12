@@ -26,7 +26,8 @@ type UserModelInterface interface {
 	Insert(string, string, string) error
 	Authenticate(string, string) (int, error)
 	Exists(int) (bool, error)
-    Get(int) (*User, error)
+	Get(int) (*User, error)
+	PasswordUpdate(int, string, string) error
 }
 
 func (m *UserModel) Insert(name, email, password string) error {
@@ -90,17 +91,49 @@ func (m *UserModel) Exists(id int) (bool, error) {
 
 func (m *UserModel) Get(id int) (*User, error) {
 	stmt := "SELECT name, email, created FROM users WHERE id = ?"
-    row := m.DB.QueryRow(stmt, id)
+	row := m.DB.QueryRow(stmt, id)
 
-    user := &User{}
-    err := row.Scan(&user.Name, &user.Email, &user.Created)
+	user := &User{}
+	err := row.Scan(&user.Name, &user.Email, &user.Created)
 	if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
-            return nil, ErrNoRecord
-        } else {
-            return nil, err
-        }
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNoRecord
+		} else {
+			return nil, err
+		}
 
 	}
-    return user, nil
+	return user, nil
+}
+
+func (m *UserModel) PasswordUpdate(id int, currentPassword, newPassword string) error {
+	stmt := "SELECT hashed_password FROM users WHERE id = ?"
+	row := m.DB.QueryRow(stmt, id)
+
+	var hashedPassword string
+	err := row.Scan(&hashedPassword)
+	if err != nil {
+		return err
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(currentPassword))
+	if err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return ErrInvalidCredentials
+		}
+		return err
+	}
+
+	newHashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	if err != nil {
+        return err
+	}
+
+	stmt = "UPDATE users SET hashed_password = ? WHERE id = ?"
+	_, err = m.DB.Exec(stmt, string(newHashedPassword), id)
+	if err != nil {
+		return err
+	}
+    
+    return nil
 }
