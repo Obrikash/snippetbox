@@ -223,8 +223,12 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
-
-	http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
+	initialURL := app.sessionManager.PopString(r.Context(), "initialURL")
+	if initialURL == "" {
+		http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
+	} else {
+		http.Redirect(w, r, initialURL, http.StatusSeeOther)
+	}
 }
 
 func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
@@ -270,7 +274,8 @@ func (app *application) accountPasswordUpdatePost(w http.ResponseWriter, r *http
 
 	passwordForm.CheckField(validator.NotBlank(passwordForm.CurrentPassword), "currentPassword", "This field cannot be blank")
 	passwordForm.CheckField(validator.MinChars(passwordForm.NewPasswordOne, 8), "newPasswordOne", "This field cannot be less than 8 characters")
-	passwordForm.CheckField(validator.MinChars(passwordForm.NewPasswordTwo, 8), "newPasswordTwo", "This field cannot be less than 8 characters")
+	passwordForm.CheckField(validator.NotBlank(passwordForm.NewPasswordOne), "newPasswordOne", "This field cannot be blank")
+	passwordForm.CheckField(validator.NotBlank(passwordForm.NewPasswordTwo), "newPasswordTwo", "This field cannot be blank")
 	passwordForm.CheckField(validator.Equal(passwordForm.NewPasswordOne, passwordForm.NewPasswordTwo), "newPasswordTwo", "Passwords do not match")
 	if !passwordForm.Valid() {
 		data := app.newTemplateData(r)
@@ -287,9 +292,9 @@ func (app *application) accountPasswordUpdatePost(w http.ResponseWriter, r *http
 			data.Form = passwordForm
 			app.render(w, http.StatusUnprocessableEntity, "password.tmpl", data)
 		} else {
-             app.serverError(w, err)
-             return
-    	}
+			app.serverError(w, err)
+		}
+        return
 	}
 	app.sessionManager.Put(r.Context(), "flash", "Password sucessfully changed!")
 	http.Redirect(w, r, "/account/view", http.StatusSeeOther)
